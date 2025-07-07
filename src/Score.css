@@ -1,0 +1,9 @@
+.score-container {
+  padding: 10px 20px;
+  background-color: #1d1d1d;
+  color: #fff;
+  font-family: 'Courier New', monospace;
+  font-size: 20px;
+  border-bottom: 2px solid #333;
+  text-align: center;
+}

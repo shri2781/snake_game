@@ -17,9 +17,11 @@ function Board() {
     const [gameOver, setGameOver] = useState(false);
     const [direction, setDirection] = useState('right');
     const [appleCell, setAppleCell] = useState(randomIntfromInterval(1, board_size * board_size));
+    const [bombCell, setBombCell] = useState(0);
 
     const directionRef = useRef('right'); 
     const appleCellRef = useRef(appleCell); 
+    const bombCellRef = useRef(bombCell); 
     const intervalRef = useRef(null);
     const directionLockedRef = useRef(false); // Lock for direction changes per move
     const gameOverSound = useRef(new Audio(gameOvervoice));
@@ -33,16 +35,20 @@ function Board() {
         appleCellRef.current = appleCell;
     }, [appleCell]);
 
+    useEffect(() => {
+        bombCellRef.current = bombCell; 
+    }, [bombCell]);
+
     // Keyboard input handler
     useEffect(() => {
         const handleKeyDown = (event) => {
-            if (directionLockedRef.current) return; // Ignore if locked
+            if (directionLockedRef.current) return;
 
             switch (event.key) {
                 case 'ArrowUp':
                     setDirection(prevDir => {
                         if (prevDir !== 'down') {
-                            directionLockedRef.current = true; // Lock direction after change
+                            directionLockedRef.current = true;
                             return 'up';
                         }
                         return prevDir;
@@ -81,38 +87,24 @@ function Board() {
         };
 
         window.addEventListener('keydown', handleKeyDown);
-
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-        };
+        return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
-    // Snake movement interval with delay to fix double-start
+    // Snake movement logic
     useEffect(() => {
         if (!gameOver) {
             const timeoutId = setTimeout(() => {
                 intervalRef.current = setInterval(() => {
                     setSnake(prevSnake => {
-                        const snakeSet = new Set(prevSnake); 
-                        //using snakeset inside this function only, creating this is O(n) but it helps to create free cells later
+                        const snakeSet = new Set(prevSnake);
                         const head = prevSnake[0];
                         let next = -1;
 
                         switch (directionRef.current) {
-                            case 'up':
-                                next = head - board_size;
-                                break;
-                            case 'down':
-                                next = head + board_size;
-                                break;
-                            case 'left':
-                                next = head - 1;
-                                break;
-                            case 'right':
-                                next = head + 1;
-                                break;
-                            default:
-                                break;
+                            case 'up': next = head - board_size; break;
+                            case 'down': next = head + board_size; break;
+                            case 'left': next = head - 1; break;
+                            case 'right': next = head + 1; break;
                         }
 
                         function checkGameOver() {
@@ -125,16 +117,20 @@ function Board() {
 
                         const isEating = next === appleCellRef.current;
                         const tail = prevSnake[prevSnake.length - 1];
-                        //self-collision detection -> take care of tail also
+
                         function isselfCollision(){
-                            if(snakeSet.has(next)){
-                                if(next!=tail) return true;
-                                if(isEating) return true;
+                            if (snakeSet.has(next)) {
+                                if (next !== tail) return true;
+                                if (isEating) return true;
                             }
                             return false;
                         }
 
-                        if (checkGameOver() || isselfCollision()){   
+                        function isBombcell(){
+                            return (bombCellRef.current && next === bombCellRef.current);
+                        }
+
+                        if (checkGameOver() || isselfCollision() || isBombcell()) {
                             setGameOver(true);
                             clearInterval(intervalRef.current);
                             return prevSnake;
@@ -142,73 +138,95 @@ function Board() {
 
                         const newSnake = [...prevSnake];
 
-                        if (next === appleCellRef.current){
-                            //playing the audio
+                        if (next === appleCellRef.current) {
                             eatingSound.current.currentTime = 0;
                             eatingSound.current.play();
-                            setScore(prev=>(prev+1));
-                            // Generate new apple that does NOT overlap with the curr_snake and next
-                            //instead of doing do-while loop, we have array of free cells and randomly pick an index.
+                            setScore(prev => prev + 1);
+                            setBombCell(0);
+
                             const freeCells = [];
                             for (let i = 1; i <= board_size * board_size; i++) {
                                 if (!snakeSet.has(i) && i !== next) {
                                     freeCells.push(i);
                                 }
                             }
-                            // Pick a random cell
                             const newApple = freeCells[Math.floor(Math.random() * freeCells.length)];
                             setAppleCell(newApple);
-                        } 
-                        else newSnake.pop();
-                        
+                        } else {
+                            newSnake.pop();
+
+                            function isAdjacent() {
+                                if (next > board_size && next - board_size === appleCellRef.current) return true;
+                                if (next <= board_size * (board_size - 1) && next + board_size === appleCellRef.current) return true;
+                                if (next % board_size !== 1 && next - 1 === appleCellRef.current) return true;
+                                if (next % board_size !== 0 && next + 1 === appleCellRef.current) return true;
+                                return false;
+                            }
+
+                            if (isAdjacent()) {
+                                let checker = Math.floor(Math.random() * 4);
+                                if (checker === 0) {
+                                    setBombCell(appleCellRef.current);
+                                    setAppleCell(-1);
+                                }
+                            }
+                        }
+
                         newSnake.unshift(next);
-                        setSnakeCells(new Set(newSnake));  
-
-                        directionLockedRef.current = false; // Unlock direction after snake moves
-
+                        setSnakeCells(new Set(newSnake));
+                        directionLockedRef.current = false;
                         return newSnake;
                     });
                 }, 300);
-            }, 50); // short delay fixes early double move
+            }, 50);
 
             return () => {
                 clearTimeout(timeoutId);
                 clearInterval(intervalRef.current);
             };
-        } 
-        else{
-            //playing the audio
+        } else {
             gameOverSound.current.currentTime = 0;
             gameOverSound.current.play();
         }
     }, [gameOver]);
 
-    return (
-    <div>
-        <Score score={score} />
-        
-        {gameOver ? (
-        // Show Game Over image instead of board
-        <div className="game-over-container">
-            <img src={gameOverImg} alt="Game Over" />
+    //Turn bomb back to apple after 2 sec
+    useEffect(() => {
+        if (appleCellRef.current === -1 && bombCellRef.current !== 0 && !gameOver) {
+            const timeout = setTimeout(() => {
+                setAppleCell(bombCellRef.current);
+                setBombCell(0);
+            }, 2000);
 
-        </div>
-        ) : (
-        // Show the board normally
-        <div className='board'>
-            {board.map((row, rowID) =>
-            <div key={rowID} className='row'>
-                {row.map((cellvalue, cellID) =>
-                <div
-                    key={cellID}
-                    className={`cell ${snakeCells.has(cellvalue) ? 'snake' : ''} ${cellvalue === appleCell ? 'food' : ''}`}
-                />
-                )}
-            </div>
+            return () => clearTimeout(timeout);
+        }
+    }, [appleCell, bombCell, gameOver]);
+
+    return (
+        <div>
+            <Score score={score} />
+            {gameOver ? (
+                <div className="game-over-container">
+                    <img src={gameOverImg} alt="Game Over" />
+                </div>
+            ) : (
+                <div className='board'>
+                    {board.map((row, rowID) =>
+                        <div key={rowID} className='row'>
+                            {row.map((cellvalue, cellID) =>
+                                <div
+                                    key={cellID}
+                                    className={`cell 
+                                        ${snakeCells.has(cellvalue) ? 'snake' : ''} 
+                                        ${cellvalue === appleCell ? 'food' : ''} 
+                                        ${cellvalue === bombCell ? 'bomb' : ''}`}
+                                />
+                            )}
+                        </div>
+                    )}
+                </div>
             )}
         </div>
-        )}
-    </div>
     );
 }
 

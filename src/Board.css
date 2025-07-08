@@ -44,3 +44,7 @@ body {
 .cell.food {
     background-color: #e53935;
 }
+
+.cell.bomb{
+    background-color: aliceblue;
+}

@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import Score from './Score';
 import './Board.css';
 import gameOverImg from './game_over.png';
-
+import gameOvervoice from './game-over.mp3';
+import eatingVoice from './eating-sound.mp3';
 const board_size = 10;
 
 function Board() {
@@ -21,6 +22,8 @@ function Board() {
     const appleCellRef = useRef(appleCell); 
     const intervalRef = useRef(null);
     const directionLockedRef = useRef(false); // Lock for direction changes per move
+    const gameOverSound = useRef(new Audio(gameOvervoice));
+    const eatingSound = useRef(new Audio(eatingVoice));
 
     useEffect(() => {
         directionRef.current = direction;
@@ -140,6 +143,9 @@ function Board() {
                         const newSnake = [...prevSnake];
 
                         if (next === appleCellRef.current){
+                            //playing the audio
+                            eatingSound.current.currentTime = 0;
+                            eatingSound.current.play();
                             setScore(prev=>(prev+1));
                             // Generate new apple that does NOT overlap with the curr_snake and next
                             //instead of doing do-while loop, we have array of free cells and randomly pick an index.
@@ -170,6 +176,11 @@ function Board() {
                 clearInterval(intervalRef.current);
             };
         } 
+        else{
+            //playing the audio
+            gameOverSound.current.currentTime = 0;
+            gameOverSound.current.play();
+        }
     }, [gameOver]);
 
     return (
@@ -180,6 +191,7 @@ function Board() {
         // Show Game Over image instead of board
         <div className="game-over-container">
             <img src={gameOverImg} alt="Game Over" />
+
         </div>
         ) : (
         // Show the board normally

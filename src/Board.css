@@ -42,13 +42,13 @@ body {
 
 /* Food cell */
 .cell.apple {
-    background-image: url('./apple.png');
+    background-image: url('/apple.png');
     background-size: cover; 
 }
 
 /* Bomb cell*/ 
 .cell.bomb {
-    background-image: url('./bomb.jpg');
+    background-image: url('/bomb.jpg');
     background-size: cover; 
 }
 

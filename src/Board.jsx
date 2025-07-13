@@ -13,19 +13,25 @@ function Board() {
     const board = createBoard(board_size);
     const [snakeCells, setSnakeCells] = useState(new Set([44])); // Snake starts at cell 44
     const [snake, setSnake] = useState([44]);
-
     const [gameOver, setGameOver] = useState(false);
     const [direction, setDirection] = useState('right');
     const [appleCell, setAppleCell] = useState(randomIntfromInterval(1, board_size * board_size));
     const [bombCell, setBombCell] = useState(0);
-
+    const [boostCell, setBoostCell] = useState(0);
+    
     const directionRef = useRef('right'); 
     const appleCellRef = useRef(appleCell); 
     const bombCellRef = useRef(bombCell); 
     const intervalRef = useRef(null);
     const directionLockedRef = useRef(false); // Lock for direction changes per move
+    const boostCellRef = useRef(boostCell);
     const gameOverSound = useRef(new Audio(gameOvervoice));
     const eatingSound = useRef(new Audio(eatingVoice));
+    const snakeCellsRef = useRef(snakeCells);
+
+    useEffect(() => {
+        snakeCellsRef.current = snakeCells;
+    }, [snakeCells]);
 
     useEffect(() => {
         directionRef.current = direction;
@@ -38,6 +44,10 @@ function Board() {
     useEffect(() => {
         bombCellRef.current = bombCell; 
     }, [bombCell]);
+
+    useEffect(() => {
+        boostCellRef.current = boostCell;
+    }, [boostCell]);
 
     // Keyboard input handler
     useEffect(() => {
@@ -142,17 +152,14 @@ function Board() {
                             eatingSound.current.currentTime = 0;
                             eatingSound.current.play();
                             setScore(prev => prev + 1);
-                            setBombCell(0);
 
-                            const freeCells = [];
-                            for (let i = 1; i <= board_size * board_size; i++) {
-                                if (!snakeSet.has(i) && i !== next) {
-                                    freeCells.push(i);
-                                }
-                            }
-                            const newApple = freeCells[Math.floor(Math.random() * freeCells.length)];
+                            const newApple = freeCell(snakeSet, bombCellRef.current, appleCellRef.current, boostCellRef.current);
                             setAppleCell(newApple);
-                        } else {
+                        } 
+                        /* Note: when snake eats an apple and apple comes adjacent, we dont want it to become bomb, 
+                        will be too hard to play, so this is in else block
+                        */ 
+                        else {
                             newSnake.pop();
 
                             function isAdjacent() {
@@ -164,12 +171,20 @@ function Board() {
                             }
 
                             if (isAdjacent()) {
-                                let checker = Math.floor(Math.random() * 4);
+                                let checker = Math.floor(Math.random()*4);
                                 if (checker === 0) {
                                     setBombCell(appleCellRef.current);
                                     setAppleCell(-1);
                                 }
                             }
+                        }
+
+                        //shrink to one when boost feature is met
+                        if(next === boostCellRef.current){
+                            eatingSound.current.currentTime = 0;
+                            eatingSound.current.play();
+                            newSnake.length = 0;       //remove all elements, 'next' is added after this block
+                            setBoostCell(0);  
                         }
 
                         newSnake.unshift(next);
@@ -192,15 +207,39 @@ function Board() {
 
     //Turn bomb back to apple after 2 sec
     useEffect(() => {
-        if (appleCellRef.current === -1 && bombCellRef.current !== 0 && !gameOver) {
+        if (bombCell !== 0) { 
             const timeout = setTimeout(() => {
-                setAppleCell(bombCellRef.current);
+                setAppleCell(bombCell);
                 setBombCell(0);
             }, 2000);
 
             return () => clearTimeout(timeout);
         }
-    }, [appleCell, bombCell, gameOver]);
+    }, [bombCell]);
+
+    //boost cell sets every 15s and remains for 5s
+    useEffect(() => {
+        let timeout;
+
+        if (boostCellRef.current === 0) {
+            timeout = setTimeout(() => {
+                const newBoostCell = freeCell(
+                    snakeCellsRef.current, 
+                    bombCellRef.current, 
+                    appleCellRef.current, 
+                    boostCellRef.current
+                );
+                setBoostCell(newBoostCell);
+            }, 15000);
+        } 
+        else {
+            timeout = setTimeout(() => {
+                setBoostCell(0);
+            }, 5000);
+        }
+
+        return () => clearTimeout(timeout);
+    }, [boostCell]);
 
     return (
         <div>
@@ -218,8 +257,10 @@ function Board() {
                                     key={cellID}
                                     className={`cell 
                                         ${snakeCells.has(cellvalue) ? 'snake' : ''} 
-                                        ${cellvalue === appleCell ? 'food' : ''} 
-                                        ${cellvalue === bombCell ? 'bomb' : ''}`}
+                                        ${cellvalue === appleCell ? 'apple' : ''} 
+                                        ${cellvalue === bombCell ? 'bomb' : ''}
+                                        ${cellvalue === boostCell ? 'boost' : ''}`
+                                    }
                                 />
                             )}
                         </div>
@@ -247,6 +288,17 @@ function createBoard(board_size) {
         board.push(curr_row);
     }
     return board;
+}
+
+//returns an free cell..used for apple spawn and boost cell
+function freeCell(snakeSet, bombCell, appleCell, boostCell){
+    const freeCells = []; //array of freecells
+    for (let i = 1; i <= board_size * board_size; i++) {
+        if (!snakeSet.has(i) && i !== bombCell && i !== appleCell && i !== boostCell) {
+            freeCells.push(i);
+        }
+    }
+    return freeCells[Math.floor(Math.random() * freeCells.length)]; //returns any one randomly
 }
 
 export default Board;

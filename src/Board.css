@@ -41,10 +41,18 @@ body {
 }
 
 /* Food cell */
-.cell.food {
-    background-color: #e53935;
+.cell.apple {
+    background-image: url('./apple.png');
+    background-size: cover; 
 }
 
-.cell.bomb{
-    background-color: aliceblue;
+/* Bomb cell*/ 
+.cell.bomb {
+    background-image: url('./bomb.jpg');
+    background-size: cover; 
+}
+
+/*reduce size feature*/
+.cell.boost{
+    background-color: #c1fa23;
 }
